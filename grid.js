@@ -1,59 +1,48 @@
 let rows = 100;
 let cols = 26;
 
-let colAddCol = document.querySelector(".colAddress");  // 1 to 100
-let rowAddRow = document.querySelector(".rowAddress");  // 1 to 100
-let cellCOn = document.querySelector(".cellCon");
-for(let i = 1; i <= rows; i++){
-    let colAdd = document.createElement("div");
-    
-    colAdd.setAttribute("class", "colAdd");
-    colAdd.innerText = i;
-    colAddCol.appendChild(colAdd);
+let addressColCont = document.querySelector(".address-col-cont");
+let addressRowCont = document.querySelector(".address-row-cont");
+let cellsCont = document.querySelector(".cells-cont");
+let addressBar = document.querySelector(".address-bar");
 
+for (let i = 0;i < rows;i++) {
+    let addressCol = document.createElement("div");
+    addressCol.setAttribute("class", "address-col");
+    addressCol.innerText = i+1;
+    addressColCont.appendChild(addressCol);
 }
 
-for(let i = 0; i < cols; i++){
-    let rowAdd = document.createElement("div");
-    
-    rowAdd.setAttribute("class", "rowAdd");
-    rowAdd.innerText = String.fromCharCode(65 + i) ;;
-    rowAddRow.appendChild(rowAdd);
-
+for (let i = 0;i < cols;i++) {
+    let addressRow = document.createElement("div");
+    addressRow.setAttribute("class", "address-row");
+    addressRow.innerText = String.fromCharCode(65 + i);
+    addressRowCont.appendChild(addressRow);
 }
 
-
-let addressBar = document.querySelector(".adressBar");
-
-const displayAdressInAddressBar = (cell, i, j) =>{
-    //    console.log(String.fromCharCode(65 + j) + (i + 1));
-        addressBar.value = String.fromCharCode(65 + j) + (i + 1) ;
-
-}
-
-for(let i = 0; i < rows; i++){
-    let rowCon = document.createElement("div");
-    rowCon.setAttribute("class", "rowCon")
-    for(let j = 0; j < cols; j++){
+for (let i = 0;i < rows;i++) {
+    let rowCont = document.createElement("div");
+    rowCont.setAttribute("class", "row-cont");
+    for (let j = 0;j < cols;j++) {
         let cell = document.createElement("div");
         cell.setAttribute("class", "cell");
+        cell.setAttribute("contenteditable", "true");
         cell.setAttribute("spellcheck", "false");
 
-        cell.setAttribute("contenteditable", "true");
-
-        // use for easy access in storage
+        // Attributes for cell and storage identification
         cell.setAttribute("rid", i);
         cell.setAttribute("cid", j);
 
-        rowCon.appendChild(cell);   
-        // console.log(cell);  
-        cell.addEventListener("click", (e) => displayAdressInAddressBar(cell, i, j));
+        rowCont.appendChild(cell);
+        addListenerForAddressBarDisplay(cell, i, j);
     }
-
-    cellCOn.appendChild(rowCon);
+    cellsCont.appendChild(rowCont);
 }
 
-
-// first cell auto focus
-// query selector select first element by default
-//firstCell.focus();
+function addListenerForAddressBarDisplay(cell, i, j) {
+    cell.addEventListener("click", (e) => {
+        let rowID = i+1;
+        let colID = String.fromCharCode(65 + j);
+        addressBar.value = `${colID}${rowID}`;
+    })
+}

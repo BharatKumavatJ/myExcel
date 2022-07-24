@@ -1,220 +1,147 @@
-//
-
-// 
-
-
-
-for(let i = 0; i < rows; i++){
-    for(let j = 0; j < cols; j++){
-        let cell = document.querySelector(`.cell[rid = "${i}"][cid = "${j}"]`);
-        
+for (let i = 0; i < rows; i++) {
+    for (let j = 0; j < cols; j++) {
+        let cell = document.querySelector(`.cell[rid="${i}"][cid="${j}"]`);
         cell.addEventListener("blur", (e) => {
             let address = addressBar.value;
-            let [cell, cellProp] = getActiveCell(address);
-            
-            if(cellProp.value != cell.innerText){
-                cellProp.value = cell.innerText;
-                removeChildFromParent(address);
-                cellProp.formula = "";
-                updateChildrenCell(address);
-            }
-            
+            let [activeCell, cellProp] = getCellAndCellProp(address);
+            let enteredData = activeCell.innerText;
 
-            
-        });
-        
-        cell.addEventListener("focus", (e) => {
-            // console.log("i got focused");
+            if (enteredData === cellProp.value) return;
 
-            addressBar.value = String.fromCharCode(65 + j) + (i + 1) ;
-            
-            setProp(cell);
-        });
-
+            cellProp.value = enteredData;
+            // If data modifies remove P-C relation, formula empty, update children with new hardcoded (modified) value
+            removeChildFromParent(cellProp.formula);
+            cellProp.formula = "";
+            updateChildrenCells(address);
+        })
     }
 }
 
+let formulaBar = document.querySelector(".formula-bar");
+formulaBar.addEventListener("keydown", async (e) => {
+    let inputFormula = formulaBar.value;
+    if (e.key === "Enter" && inputFormula) {
 
 
-let formulaBar = document.querySelector(".formulaBar");
-
-formulaBar.addEventListener("keydown", async  (e) =>  {
-    let formula = formulaBar.value;
-    if(e.key === "Enter" && formula){
+        // If change in formula, break old P-C relation, evaluate new formula, add new P-C relation
         let address = addressBar.value;
-        
-        
-        
-        let [cell, cellProp] = getActiveCell(address);
-        
-        let presentFormula = cellProp.formula;
+        let [cell, cellProp] = getCellAndCellProp(address);
+        if (inputFormula !== cellProp.formula) removeChildFromParent(cellProp.formula);
 
-        
-        
-        if(presentFormula != formula && presentFormula){
-            console.log("formula enter");
-           
-            removeChildFromParent(address);    
-        }
-        addChildToGraphComponent(address, formula);
-        let cycleResponse = isGraphCyclic();
-        if(cycleResponse){
-            // alert("Your formula is cyclic please enter valid formula ");
-            let response = confirm("Your Formula is Cyclic, Do you want to trace our path ");
-            while(response === true){
-                console.log(response);
-                // keep on tracing color until user wants 
-                await isGraphCyclicTracePath(cycleResponse);
-                response = confirm("Your Formula is Cyclic, Do you want to trace our path ");
-
+        addChildToGraphComponent(inputFormula, address);
+        // Check formula is cyclic or not, then only evaluate
+        // True -> cycle, False -> Not cyclic
+        // console.log(graphComponentMatrix);
+        let cycleResponse = isGraphCylic(graphComponentMatrix);
+        if (cycleResponse) {
+            // alert("Your formula is cyclic");
+            let response = confirm("Your formula is cyclic. Do you want to trace your path?");
+            while (response === true) {
+                // Keep on tracking color until user is sartisfied
+                await isGraphCylicTracePath(graphComponentMatrix, cycleResponse); // I want to complete full  iteration of color tracking, so I will attach wait here also
+                response = confirm("Your formula is cyclic. Do you want to trace your path?");
             }
-            removeChildFromGraphComponent(formula);
+
+            removeChildFromGraphComponent(inputFormula, address);
             return;
         }
-        
 
-        addChildToParenet(formula, address); 
+        let evaluatedValue = evaluateFormula(inputFormula);
 
-        let evalutedFormula = evaluateFormula(formula); 
-        setUIandDB(cell, cellProp, evalutedFormula);
-        
-        cellProp.formula = formula;
-        
-        updateChildrenCell(address);
-        // console.log(sheetDB);
-        console.log(graphComponentMatrix);
-        
+        // To update UI and cellProp in DB
+        setCellUIAndCellProp(evaluatedValue, inputFormula, address);
+        addChildToParent(inputFormula);
+
+        updateChildrenCells(address);
     }
-    
 })
 
-function removeChildFromGraphComponent(formula){
+function addChildToGraphComponent(formula, childAddress) {
+    let [crid, ccid] = decodeRIDCIDFromAddress(childAddress);
+    let encodedFormula = formula.split(" ");
+    for (let i = 0; i < encodedFormula.length; i++) {
+        let asciiValue = encodedFormula[i].charCodeAt(0);
+        if (asciiValue >= 65 && asciiValue <= 90) {
+            let [prid, pcid] = decodeRIDCIDFromAddress(encodedFormula[i]);
+            // B1: A1 + 10
+            // rid -> i, cid -> j
+            graphComponentMatrix[prid][pcid].push([crid, ccid]);
+        }
+    }
+}
 
-  
-    // A1 = B1 + C1 
-    let encodedFormula = formula.split(" "); // B1 ,  + , C1
-    
-    for(let i = 0; i < encodedFormula.length; i++){
-        let ascii = encodedFormula[i].charCodeAt(0);
-        if(ascii >= 65 && ascii <= 90) {
+function removeChildFromGraphComponent(formula, childAddress) {
+    let [crid, ccid] = decodeRIDCIDFromAddress(childAddress);
+    let encodedFormula = formula.split(" ");
 
-            let [prid, pcid] = decodeRidCidAddress(encodedFormula[i]); // 0 1 
+    for (let i = 0; i < encodedFormula.length; i++) {
+        let asciiValue = encodedFormula[i].charCodeAt(0);
+        if (asciiValue >= 65 && asciiValue <= 90) {
+            let [prid, pcid] = decodeRIDCIDFromAddress(encodedFormula[i]);
             graphComponentMatrix[prid][pcid].pop();
-            
-        }
-    }
-
-
-}
-
-
-
-
-function addChildToGraphComponent(childAdress, formula){
-
-    
-    // console.log("i got exe");
-    let [ccid, crid] = decodeRidCidAddress(childAdress);
-    // A1 = B1 + C1 
-    let encodedFormula = formula.split(" "); // B1 ,  + , C1
-    
-    for(let i = 0; i < encodedFormula.length; i++){
-        let ascii = encodedFormula[i].charCodeAt(0);
-        if(ascii >= 65 && ascii <= 90) {
-
-            let [prid, pcid] = decodeRidCidAddress(encodedFormula[i]); // 0 1 
-            graphComponentMatrix[prid][pcid].push([ccid, crid]);
-            
-        }
-    }
-
-
-}
-function updateChildrenCell(parentCell){
-
-    let [parentNode, parentProp] = getActiveCell(parentCell);
-    
-    let childrenList = parentProp.children;
-
-    for(let i = 0; i < childrenList.length; i++){
-
-        let [childNode, childProp] = getActiveCell(childrenList[i]);
-        let evalutedFormula = evaluateFormula(childProp.formula);  
-        setUIandDB(childNode, cellProp, evalutedFormula);  
-        childNode.formula = evalutedFormula;
-
-        updateChildrenCell(childrenList[i]);
-    }
-    
-    
-}
-
-function addChildToParenet(formula, address){
-    
-    let nodes = formula.split(" "); // B1 = [ ( , A1,  + , A2, )]
-    
-    
-    for(let i = 0; i < nodes.length; i++){
-        let ascii = nodes[i].charCodeAt(0) ;
-        
-        if(ascii >= 65 && ascii <= 90){
-            [cell, cellProp]  = getActiveCell(nodes[i]);
-            cellProp.children.push(address);
-            
-
         }
     }
 }
-function removeChildFromParent(adress){
-    [cell, cellProp] = getActiveCell(adress);
-    let presentFormula = cellProp.formula;
-    let nodes = presentFormula.split(" ");
 
-    for(let i = 0; i < nodes.length; i++){
-        let ascii = nodes[i].charCodeAt(0) ;
-        
-        if(ascii >= 65 && ascii <= 90){
-            [cell, cellProp]  = getActiveCell(nodes[i]);
-            
-            let index = cellProp.children.indexOf(nodes[i]);
-            cellProp.children.splice(index, 1);
+function updateChildrenCells(parentAddress) {
+    let [parentCell, parentCellProp] = getCellAndCellProp(parentAddress);
+    let children = parentCellProp.children;
 
+    for (let i = 0; i < children.length; i++) {
+        let childAddress = children[i];
+        let [childCell, childCellProp] = getCellAndCellProp(childAddress);
+        let childFormula = childCellProp.formula;
+
+        let evaluatedValue = evaluateFormula(childFormula);
+        setCellUIAndCellProp(evaluatedValue, childFormula, childAddress);
+        updateChildrenCells(childAddress);
+    }
+}
+
+function addChildToParent(formula) {
+    let childAddress = addressBar.value;
+    let encodedFormula = formula.split(" ");
+    for (let i = 0; i < encodedFormula.length; i++) {
+        let asciiValue = encodedFormula[i].charCodeAt(0);
+        if (asciiValue >= 65 && asciiValue <= 90) {
+            let [parentCell, parentCellProp] = getCellAndCellProp(encodedFormula[i]);
+            parentCellProp.children.push(childAddress);
         }
     }
-
 }
 
-function setUIandDB(cell, cellProp, evalutedFormula){
-    cell.innerText = evalutedFormula;
-
-    cellProp.value = evalutedFormula;
-    
+function removeChildFromParent(formula) {
+    let childAddress = addressBar.value;
+    let encodedFormula = formula.split(" ");
+    for (let i = 0; i < encodedFormula.length; i++) {
+        let asciiValue = encodedFormula[i].charCodeAt(0);
+        if (asciiValue >= 65 && asciiValue <= 90) {
+            let [parentCell, parentCellProp] = getCellAndCellProp(encodedFormula[i]);
+            let idx = parentCellProp.children.indexOf(childAddress);
+            parentCellProp.children.splice(idx, 1);
+        }
+    }
 }
 
-function evaluateFormula(formula){
-    // if user have been given 
-    // one constrain formula must be space separated 
-    // (A1 + 10)
-
-    let encodedFormula = formula.split(" "); // [ ( , A1,  + , 10, )]
-
-    
-    for(let i = 0; i < encodedFormula.length; i++){
-        let ascii = encodedFormula[i].charCodeAt(0) ;
-        
-        if(ascii >= 65 && ascii <= 90){
-            // console.log(encodedFormula[i]);
-            [cell, cellProp]  = getActiveCell(encodedFormula[i]);
-            // console.log(cellProp.value);
+function evaluateFormula(formula) {
+    let encodedFormula = formula.split(" ");
+    for (let i = 0; i < encodedFormula.length; i++) {
+        let asciiValue = encodedFormula[i].charCodeAt(0);
+        if (asciiValue >= 65 && asciiValue <= 90) {
+            let [cell, cellProp] = getCellAndCellProp(encodedFormula[i]);
             encodedFormula[i] = cellProp.value;
         }
     }
-    let formula1 = encodedFormula.join(" ");
-    // console.log(formula1)
-    return eval(formula1); // evaluate arithmatic expression
+    let decodedFormula = encodedFormula.join(" ");
+    return eval(decodedFormula);
 }
 
+function setCellUIAndCellProp(evaluatedValue, formula, address) {
+    let [cell, cellProp] = getCellAndCellProp(address);
 
-for(let i = 0; i < cell.length; i++){
-    cell[i].addEventListener("click", (e) => setProp(cell[i]));
+    //UI update
+    cell.innerText = evaluatedValue;
+    // DB update
+    cellProp.value = evaluatedValue;
+    cellProp.formula = formula;
 }
